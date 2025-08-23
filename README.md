@@ -17,6 +17,7 @@ Nillion Secret Vaults is a decentralized private storage system that allows you 
 - **Real-time Statistics**: View collections, documents, encrypted data volume, and active queries
 - **Activity Feed**: Track recent operations and system events
 - **Node Status**: Monitor connection status to the Nillion network
+- **Network Mode Indicator**: Shows whether connected to live testnet or running in demo mode
 
 ### Collections Management
 - **Create Collections**: Organize your data with custom encryption settings
@@ -41,12 +42,17 @@ Nillion Secret Vaults is a decentralized private storage system that allows you 
 - **Access Audit**: View and revoke active permissions
 - **Security Logs**: Track all access control changes
 
+### Wallet Integration
+- **Nillion Key Support**: Connect using Nillion seed phrases or private keys
+- **Testnet Integration**: Direct connection to Nillion testnet infrastructure
+- **Fallback Mode**: Automatic demo mode when testnet APIs are unavailable
+
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18+ 
 - npm or yarn
-- Access to a Nillion network (testnet or mainnet)
+- Nillion seed phrase or private key (for testnet connection)
 
 ### Installation
 
@@ -63,26 +69,35 @@ Nillion Secret Vaults is a decentralized private storage system that allows you 
    yarn install
    \`\`\`
 
-3. **Set up environment variables**
-   Create a `.env.local` file in the root directory:
-   \`\`\`env
-   # Nillion Network Configuration
-   NEXT_PUBLIC_NILLION_NETWORK_URL=https://testnet.nillion.com
-   NEXT_PUBLIC_NILLION_APP_ID=your_app_id
-   
-   # Optional: Analytics and monitoring
-   NEXT_PUBLIC_ANALYTICS_ID=your_analytics_id
-   \`\`\`
-
-4. **Run the development server**
+3. **Run the development server**
    \`\`\`bash
    npm run dev
    # or
    yarn dev
    \`\`\`
 
-5. **Open your browser**
+4. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+### Connecting to Nillion Testnet
+
+1. **Using Seed Phrase**: Enter your 12-word Nillion seed phrase
+2. **Using Private Key**: Enter your Nillion private key directly
+3. **Demo Mode**: If testnet APIs are unavailable, the app automatically switches to demo mode
+
+## 🌐 Network Configuration
+
+The application automatically configures connections to:
+
+- **Primary API**: `nillion-storage-apis-v0.onrender.com`
+- **nilDB Nodes**: Multiple testnet nodes for redundancy
+- **Fallback Mode**: Local storage simulation when APIs are unavailable
+
+### Network Status Indicators
+
+- 🟢 **Connected**: Live connection to Nillion testnet
+- 🟡 **Demo Mode**: Using local fallback storage
+- 🔴 **Disconnected**: No network connection available
 
 ## 🛠️ Technology Stack
 
@@ -93,37 +108,47 @@ Nillion Secret Vaults is a decentralized private storage system that allows you 
 - **Icons**: Lucide React
 - **Theme**: Light/Dark mode support
 - **Font**: DM Sans for modern, technical aesthetic
-
-## 🎨 Design System
-
-The UI follows a security-focused design language:
-
-- **Colors**: Green-based palette conveying trust and security
-- **Typography**: DM Sans for clarity and professionalism  
-- **Layout**: Clean, spacious design with clear information hierarchy
-- **Interactions**: Smooth animations and responsive feedback
-- **Accessibility**: WCAG AA compliant with proper contrast ratios
+- **Nillion SDK**: `@nillion/secretvaults` for testnet integration
 
 ## 📁 Project Structure
 
 \`\`\`
 ├── app/
 │   ├── globals.css          # Global styles and design tokens
-│   ├── layout.tsx           # Root layout with theme provider
+│   ├── layout.tsx           # Root layout with providers
 │   └── page.tsx             # Main dashboard page
 ├── components/
 │   ├── secret-vaults-dashboard.tsx  # Main dashboard component
-│   ├── theme-provider.tsx   # Dark/light theme management
-│   └── ui/                  # shadcn/ui components
+│   ├── wallet-connection.tsx        # Nillion wallet integration
+│   ├── network-status.tsx          # Network status indicator
+│   ├── error-boundary.tsx          # Error handling component
+│   ├── theme-provider.tsx          # Dark/light theme management
+│   └── ui/                         # shadcn/ui components
 ├── hooks/
+│   ├── use-nillion.ts       # Nillion SDK integration hook
 │   ├── use-mobile.tsx       # Mobile detection hook
 │   └── use-toast.ts         # Toast notification system
 ├── lib/
+│   ├── nillion-client.ts    # Nillion API client with fallback
+│   ├── nillion-config.ts    # Network configuration
+│   ├── error-handler.ts     # Error handling utilities
 │   └── utils.ts             # Utility functions
 └── README.md
 \`\`\`
 
 ## 🔧 Configuration
+
+### Environment Variables (Optional)
+
+Create a `.env.local` file for additional configuration:
+
+\`\`\`env
+# Optional: Custom API endpoints
+NEXT_PUBLIC_NILLION_API_URL=https://custom-api.nillion.com
+
+# Optional: Analytics and monitoring
+NEXT_PUBLIC_ANALYTICS_ID=your_analytics_id
+\`\`\`
 
 ### Theme Customization
 The design system uses CSS custom properties for theming. Modify `app/globals.css` to customize:
@@ -132,15 +157,13 @@ The design system uses CSS custom properties for theming. Modify `app/globals.cs
 - Spacing scale
 - Typography settings
 
-### Component Customization
-All UI components are built with shadcn/ui and can be customized by modifying the component files in `components/ui/`.
-
 ## 🚦 Usage
 
-### Connecting to Nillion Network
-1. Ensure your environment variables are properly configured
-2. The dashboard will automatically attempt to connect to the specified network
-3. Connection status is displayed in the top navigation
+### Connecting Your Wallet
+1. Click "Connect Wallet" on the dashboard
+2. Choose connection method (seed phrase or private key)
+3. Enter your Nillion credentials
+4. The app will attempt to connect to testnet or switch to demo mode
 
 ### Managing Collections
 1. Click "Create Collection" to add a new data collection
@@ -157,13 +180,40 @@ All UI components are built with shadcn/ui and can be customized by modifying th
 2. Add users by their DID (Decentralized Identifier)
 3. Set appropriate permission levels (read, write, admin)
 
+## 🔄 Demo Mode vs Live Mode
+
+### Live Mode (Testnet Connected)
+- Real operations on Nillion testnet
+- Persistent data storage across sessions
+- Actual network fees and transaction times
+- Full decentralized functionality
+
+### Demo Mode (Fallback)
+- Local browser storage simulation
+- Instant operations for testing UI
+- No network fees or delays
+- Data cleared on browser refresh
+
 ## 🔒 Security Considerations
 
 - All data is encrypted before storage on the Nillion network
-- User authentication is handled through decentralized identifiers
+- Private keys are never stored or transmitted
+- Seed phrases are processed locally for key derivation
 - Permissions are enforced at the network level
-- No sensitive data is stored in browser localStorage
 - All API communications use secure protocols
+- Fallback mode uses secure local storage
+
+## 🐛 Troubleshooting
+
+### Connection Issues
+- Verify your seed phrase or private key is correct
+- Check network connectivity
+- The app will automatically switch to demo mode if APIs are unavailable
+
+### API Errors
+- Testnet APIs may be temporarily unavailable
+- Demo mode provides full UI functionality for development
+- Check the network status indicator for current connection state
 
 ## 🤝 Contributing
 
@@ -189,4 +239,5 @@ For support and questions:
 - [Nillion Network](https://nillion.com)
 - [Nillion Documentation](https://docs.nillion.com)
 - [secretvaults-ts Library](https://github.com/NillionNetwork/secretvaults-ts)
+- [Nillion Testnet](https://testnet.nillion.com)
 - [shadcn/ui Components](https://ui.shadcn.com)

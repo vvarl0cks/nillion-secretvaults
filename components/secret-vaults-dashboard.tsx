@@ -1,154 +1,156 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Shield,
   Database,
-  Search,
   Users,
-  Plus,
   Settings,
   Key,
   Lock,
   Server,
   Activity,
-  FileText,
   Eye,
-  Trash2,
-  Edit,
-  Share,
-  Download,
-  Upload,
   AlertCircle,
   CheckCircle,
   Clock,
+  Loader2,
+  Copy,
+  RefreshCw,
 } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-
-interface Collection {
-  id: string
-  name: string
-  description: string
-  documents: number
-  encrypted: boolean
-  created: string
-  lastModified: string
-}
-
-interface Query {
-  id: string
-  name: string
-  collection: string
-  status: "completed" | "running" | "failed"
-  created: string
-  results?: number
-}
-
-interface DataDocument {
-  id: string
-  collection: string
-  name: string
-  size: string
-  encrypted: boolean
-  owner: string
-  created: string
-  lastAccessed: string
-}
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { WalletConnection } from "./wallet-connection"
+import { useNillion } from "@/hooks/use-nillion"
+import { useToast } from "@/hooks/use-toast"
 
 export function SecretVaultsDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
-  const [collections, setCollections] = useState<Collection[]>([
-    {
-      id: "1",
-      name: "User Profiles",
-      description: "Encrypted user profile data",
-      documents: 1247,
-      encrypted: true,
-      created: "2024-01-15",
-      lastModified: "2024-01-20",
-    },
-    {
-      id: "2",
-      name: "Financial Records",
-      description: "Sensitive financial information",
-      documents: 892,
-      encrypted: true,
-      created: "2024-01-10",
-      lastModified: "2024-01-19",
-    },
-    {
-      id: "3",
-      name: "System Logs",
-      description: "Application logs and metrics",
-      documents: 5643,
-      encrypted: false,
-      created: "2024-01-05",
-      lastModified: "2024-01-21",
-    },
-  ])
+  const [isStoring, setIsStoring] = useState(false)
+  const [isRetrieving, setIsRetrieving] = useState(false)
+  const [newSecretName, setNewSecretName] = useState("")
+  const [newSecretValue, setNewSecretValue] = useState("")
+  const [newSecretType, setNewSecretType] = useState<"string" | "number">("string")
+  const [retrieveStoreId, setRetrieveStoreId] = useState("")
+  const [retrieveSecretName, setRetrieveSecretName] = useState("")
+  const [retrievedSecret, setRetrievedSecret] = useState<any>(null)
+  const [networkStatus, setNetworkStatus] = useState<{
+    connected: boolean
+    nodeCount: number
+    activeNodes: string[]
+  } | null>(null)
 
-  const [queries, setQueries] = useState<Query[]>([
-    {
-      id: "1",
-      name: "Active Users Query",
-      collection: "User Profiles",
-      status: "completed",
-      created: "2024-01-21",
-      results: 156,
-    },
-    {
-      id: "2",
-      name: "Transaction Analysis",
-      collection: "Financial Records",
-      status: "running",
-      created: "2024-01-21",
-    },
-    {
-      id: "3",
-      name: "Error Log Search",
-      collection: "System Logs",
-      status: "failed",
-      created: "2024-01-20",
-    },
-  ])
+  const {
+    user,
+    isConnected,
+    secrets,
+    isLoading,
+    error,
+    connectUser,
+    disconnectUser,
+    refreshSecrets,
+    storeSecret,
+    retrieveSecret,
+  } = useNillion()
 
-  const [documents, setDocuments] = useState<DataDocument[]>([
-    {
-      id: "1",
-      collection: "User Profiles",
-      name: "user_profile_001.json",
-      size: "2.4 KB",
-      encrypted: true,
-      owner: "did:nil:abc123...",
-      created: "2024-01-21",
-      lastAccessed: "2024-01-21",
-    },
-    {
-      id: "2",
-      collection: "Financial Records",
-      name: "transaction_log.json",
-      size: "15.7 KB",
-      encrypted: true,
-      owner: "did:nil:def456...",
-      created: "2024-01-20",
-      lastAccessed: "2024-01-21",
-    },
-  ])
+  const { toast } = useToast()
+
+  useEffect(() => {
+    const checkNetwork = async () => {
+      try {
+        const { nillionClient } = await import("@/lib/nillion-client")
+        const status = await nillionClient.getNetworkStatus()
+        setNetworkStatus(status)
+      } catch (error) {
+        console.error("Failed to check network:", error)
+      }
+    }
+    checkNetwork()
+  }, [])
+
+  const handleStoreSecret = async () => {
+    if (!newSecretName.trim() || !newSecretValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both secret name and value",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsStoring(true)
+    try {
+      const value = newSecretType === "number" ? Number.parseFloat(newSecretValue) : newSecretValue
+      await storeSecret(newSecretName.trim(), value)
+
+      setNewSecretName("")
+      setNewSecretValue("")
+      toast({
+        title: "Success",
+        description: `Secret "${newSecretName}" stored successfully`,
+      })
+    } catch (error) {
+      console.error("Failed to store secret:", error)
+      toast({
+        title: "Storage Failed",
+        description: error instanceof Error ? error.message : "Failed to store secret",
+        variant: "destructive",
+      })
+    } finally {
+      setIsStoring(false)
+    }
+  }
+
+  const handleRetrieveSecret = async () => {
+    if (!retrieveStoreId.trim() || !retrieveSecretName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both store ID and secret name",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsRetrieving(true)
+    try {
+      const result = await retrieveSecret(retrieveStoreId.trim(), retrieveSecretName.trim())
+      setRetrievedSecret(result)
+      toast({
+        title: "Success",
+        description: "Secret retrieved successfully",
+      })
+    } catch (error) {
+      console.error("Failed to retrieve secret:", error)
+      toast({
+        title: "Retrieval Failed",
+        description: error instanceof Error ? error.message : "Failed to retrieve secret",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRetrieving(false)
+    }
+  }
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({
+        title: "Copied",
+        description: `${label} copied to clipboard`,
+      })
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      })
+    }
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -178,9 +180,15 @@ export function SecretVaultsDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-              <Server className="h-3 w-3 mr-1" />3 Nodes Connected
-            </Badge>
+            {networkStatus && (
+              <Badge
+                variant={networkStatus.connected ? "default" : "destructive"}
+                className={networkStatus.connected ? "bg-primary/10 text-primary border-primary/20" : ""}
+              >
+                <Server className="h-3 w-3 mr-1" />
+                {networkStatus.activeNodes.length}/{networkStatus.nodeCount} Nodes
+              </Badge>
+            )}
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
               Settings
@@ -203,469 +211,435 @@ export function SecretVaultsDashboard() {
               Overview
             </Button>
             <Button
-              variant={activeTab === "collections" ? "default" : "ghost"}
+              variant={activeTab === "secrets" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setActiveTab("collections")}
+              onClick={() => setActiveTab("secrets")}
+            >
+              <Key className="h-4 w-4 mr-2" />
+              Secrets
+            </Button>
+            <Button
+              variant={activeTab === "operations" ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("operations")}
             >
               <Database className="h-4 w-4 mr-2" />
-              Collections
-            </Button>
-            <Button
-              variant={activeTab === "queries" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("queries")}
-            >
-              <Search className="h-4 w-4 mr-2" />
-              Queries
-            </Button>
-            <Button
-              variant={activeTab === "documents" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("documents")}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Documents
-            </Button>
-            <Button
-              variant={activeTab === "access" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("access")}
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Access Control
+              Operations
             </Button>
           </nav>
         </aside>
 
         {/* Main Panel */}
         <main className="flex-1 p-6">
-          {activeTab === "overview" && (
+          {!isConnected ? (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Dashboard Overview</h2>
-                <p className="text-muted-foreground">Monitor your decentralized storage system</p>
+                <h2 className="text-2xl font-bold text-foreground mb-2">Welcome to Nillion Secret Vaults</h2>
+                <p className="text-muted-foreground">Connect your wallet to start managing secrets on the testnet</p>
               </div>
-
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Collections</CardTitle>
-                    <Database className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-foreground">{collections.length}</div>
-                    <p className="text-xs text-muted-foreground">+2 from last month</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-foreground">
-                      {collections.reduce((sum, col) => sum + col.documents, 0).toLocaleString()}
-                    </div>
-                    <p className="text-xs text-muted-foreground">+12% from last week</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Encrypted Data</CardTitle>
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-foreground">
-                      {collections.filter((col) => col.encrypted).length}/{collections.length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Security enabled</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Queries</CardTitle>
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-foreground">
-                      {queries.filter((q) => q.status === "running").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Currently processing</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest operations across your secret vaults</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">New collection "User Profiles" created</p>
-                        <p className="text-xs text-muted-foreground">2 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-secondary rounded-full"></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Query "Active Users Query" completed</p>
-                        <p className="text-xs text-muted-foreground">4 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Document uploaded to "Financial Records"</p>
-                        <p className="text-xs text-muted-foreground">6 hours ago</p>
-                      </div>
-                    </div>
+              <WalletConnection onUserConnected={connectUser} user={user} />
+            </div>
+          ) : (
+            <>
+              {activeTab === "overview" && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground mb-2">Dashboard Overview</h2>
+                    <p className="text-muted-foreground">Monitor your decentralized storage system</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
 
-          {activeTab === "collections" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Collections</h2>
-                  <p className="text-muted-foreground">Manage your data collections</p>
-                </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Collection
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New Collection</DialogTitle>
-                      <DialogDescription>Set up a new collection to organize your data</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="collection-name">Collection Name</Label>
-                        <Input id="collection-name" placeholder="Enter collection name" />
-                      </div>
-                      <div>
-                        <Label htmlFor="collection-description">Description</Label>
-                        <Textarea id="collection-description" placeholder="Describe this collection" />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch id="encryption" />
-                        <Label htmlFor="encryption">Enable encryption</Label>
-                      </div>
-                      <Button className="w-full">Create Collection</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                  {/* Wallet Connection Status */}
+                  <WalletConnection onUserConnected={connectUser} user={user} />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {collections.map((collection) => (
-                  <Card key={collection.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{collection.name}</CardTitle>
-                        <div className="flex items-center gap-2">
-                          {collection.encrypted && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Encrypted
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <CardDescription>{collection.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Documents:</span>
-                          <span className="font-medium">{collection.documents.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Created:</span>
-                          <span className="font-medium">{collection.created}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Modified:</span>
-                          <span className="font-medium">{collection.lastModified}</span>
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Secrets</CardTitle>
+                        <Key className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-foreground">{secrets.length}</div>
+                        <p className="text-xs text-muted-foreground">Stored on testnet</p>
+                      </CardContent>
+                    </Card>
 
-          {activeTab === "queries" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Queries</h2>
-                  <p className="text-muted-foreground">Manage and execute data queries</p>
-                </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Query
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New Query</DialogTitle>
-                      <DialogDescription>Build a query to search your collections</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="query-name">Query Name</Label>
-                        <Input id="query-name" placeholder="Enter query name" />
-                      </div>
-                      <div>
-                        <Label htmlFor="query-collection">Target Collection</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select collection" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {collections.map((col) => (
-                              <SelectItem key={col.id} value={col.id}>
-                                {col.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="query-filter">Query Filter</Label>
-                        <Textarea id="query-filter" placeholder="Enter query conditions (JSON format)" />
-                      </div>
-                      <Button className="w-full">Create Query</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Network Status</CardTitle>
+                        <Server className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-foreground">
+                          {networkStatus ? `${networkStatus.activeNodes.length}/${networkStatus.nodeCount}` : "0/0"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Active nodes</p>
+                      </CardContent>
+                    </Card>
 
-              <div className="space-y-4">
-                {queries.map((query) => (
-                  <Card key={query.id}>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Encrypted Data</CardTitle>
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-foreground">{secrets.length}</div>
+                        <p className="text-xs text-muted-foreground">All secrets encrypted</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">User ID</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm font-bold text-foreground font-mono">
+                          {user?.userId.substring(0, 12)}...
+                        </div>
+                        <p className="text-xs text-muted-foreground">Connected user</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            {getStatusIcon(query.status)}
-                            {query.name}
-                          </CardTitle>
-                          <CardDescription>Collection: {query.collection}</CardDescription>
+                          <CardTitle>Recent Secrets</CardTitle>
+                          <CardDescription>Your latest stored secrets</CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              query.status === "completed"
-                                ? "default"
-                                : query.status === "running"
-                                  ? "secondary"
-                                  : "destructive"
-                            }
+                        <Button variant="outline" size="sm" onClick={refreshSecrets} disabled={isLoading}>
+                          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {error && (
+                        <Alert className="mb-4">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      )}
+                      <div className="space-y-4">
+                        {secrets.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-4">No secrets stored yet</p>
+                        ) : (
+                          secrets.slice(0, 5).map((secret) => (
+                            <div key={secret.storeId} className="flex items-center gap-3">
+                              <div className="w-2 h-2 bg-primary rounded-full"></div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">Secret "{secret.secretName}" stored</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  Store ID: {secret.storeId.substring(0, 16)}...
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => copyToClipboard(secret.storeId, "Store ID")}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {activeTab === "secrets" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-foreground mb-2">Secret Management</h2>
+                      <p className="text-muted-foreground">Store and retrieve secrets on Nillion testnet</p>
+                    </div>
+                    <Button variant="outline" onClick={refreshSecrets} disabled={isLoading}>
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Store Secret */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Store New Secret</CardTitle>
+                        <CardDescription>Add a new secret to the Nillion network</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <Label htmlFor="secret-name">Secret Name</Label>
+                          <Input
+                            id="secret-name"
+                            placeholder="Enter secret name"
+                            value={newSecretName}
+                            onChange={(e) => setNewSecretName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="secret-type">Secret Type</Label>
+                          <Select
+                            value={newSecretType}
+                            onValueChange={(value: "string" | "number") => setNewSecretType(value)}
                           >
-                            {query.status}
-                          </Badge>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="string">String</SelectItem>
+                              <SelectItem value="number">Number</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
+                        <div>
+                          <Label htmlFor="secret-value">Secret Value</Label>
+                          <Input
+                            id="secret-value"
+                            type={newSecretType === "number" ? "number" : "text"}
+                            placeholder={newSecretType === "number" ? "Enter number" : "Enter secret value"}
+                            value={newSecretValue}
+                            onChange={(e) => setNewSecretValue(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleStoreSecret} disabled={isStoring} className="w-full">
+                          {isStoring ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Storing...
+                            </>
+                          ) : (
+                            <>
+                              <Key className="h-4 w-4 mr-2" />
+                              Store Secret
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Retrieve Secret */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Retrieve Secret</CardTitle>
+                        <CardDescription>Get a secret from the Nillion network</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <Label htmlFor="store-id">Store ID</Label>
+                          <Input
+                            id="store-id"
+                            placeholder="Enter store ID"
+                            value={retrieveStoreId}
+                            onChange={(e) => setRetrieveStoreId(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="retrieve-secret-name">Secret Name</Label>
+                          <Input
+                            id="retrieve-secret-name"
+                            placeholder="Enter secret name"
+                            value={retrieveSecretName}
+                            onChange={(e) => setRetrieveSecretName(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleRetrieveSecret} disabled={isRetrieving} className="w-full">
+                          {isRetrieving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Retrieving...
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Retrieve Secret
+                            </>
+                          )}
+                        </Button>
+
+                        {retrievedSecret && (
+                          <div className="mt-4 p-4 bg-muted rounded-lg">
+                            <Label className="text-sm font-medium">Retrieved Value:</Label>
+                            <pre className="mt-2 text-sm font-mono bg-background p-2 rounded border">
+                              {JSON.stringify(retrievedSecret, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Stored Secrets List */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Your Stored Secrets</CardTitle>
+                      <CardDescription>All secrets you've stored on the network</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">Created: {query.created}</p>
-                          {query.results && <p className="text-sm text-muted-foreground">Results: {query.results}</p>}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Download className="h-3 w-3 mr-1" />
-                            Export
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
+                      {error && (
+                        <Alert className="mb-4">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      )}
+                      <div className="space-y-4">
+                        {secrets.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-8">
+                            No secrets stored yet. Store your first secret above!
+                          </p>
+                        ) : (
+                          secrets.map((secret) => (
+                            <div
+                              key={secret.storeId}
+                              className="flex items-center justify-between p-4 border border-border rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Key className="h-8 w-8 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium">{secret.secretName}</p>
+                                  <p className="text-sm text-muted-foreground font-mono">
+                                    Store ID: {secret.storeId.substring(0, 20)}...
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Stored: {new Date(secret.timestamp).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-xs">
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  Encrypted
+                                </Badge>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setRetrieveStoreId(secret.storeId)
+                                    setRetrieveSecretName(secret.secretName)
+                                  }}
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  Load
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(secret.storeId, "Store ID")}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "documents" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Documents</h2>
-                  <p className="text-muted-foreground">Browse and manage your stored documents</p>
                 </div>
-                <Button>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Document
-                </Button>
-              </div>
+              )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Document Library</CardTitle>
-                  <CardDescription>All documents across your collections</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-8 w-8 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium">{doc.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {doc.collection} • {doc.size} • {doc.created}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {doc.encrypted && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Encrypted
-                            </Badge>
-                          )}
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Share className="h-3 w-3 mr-1" />
-                            Share
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+              {activeTab === "operations" && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-foreground mb-2">Network Operations</h2>
+                    <p className="text-muted-foreground">Monitor network status and perform operations</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
 
-          {activeTab === "access" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Access Control</h2>
-                <p className="text-muted-foreground">Manage permissions and user access</p>
-              </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Network Status</CardTitle>
+                        <CardDescription>Current status of Nillion testnet nodes</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {networkStatus ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Connection Status:</span>
+                              <Badge variant={networkStatus.connected ? "default" : "destructive"}>
+                                {networkStatus.connected ? "Connected" : "Disconnected"}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Active Nodes:</span>
+                              <span className="text-sm">
+                                {networkStatus.activeNodes.length}/{networkStatus.nodeCount}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              <span className="text-sm font-medium">Node URLs:</span>
+                              {networkStatus.activeNodes.map((node, index) => (
+                                <div key={index} className="text-xs font-mono bg-muted p-2 rounded">
+                                  {node}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground">Loading network status...</p>
+                        )}
+                      </CardContent>
+                    </Card>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Grant Access</CardTitle>
-                    <CardDescription>Give users access to specific documents</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="user-did">User DID</Label>
-                      <Input id="user-did" placeholder="did:nil:..." />
-                    </div>
-                    <div>
-                      <Label htmlFor="document-select">Document</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select document" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {documents.map((doc) => (
-                            <SelectItem key={doc.id} value={doc.id}>
-                              {doc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="permission-level">Permission Level</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select permission" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="read">Read Only</SelectItem>
-                          <SelectItem value="write">Read & Write</SelectItem>
-                          <SelectItem value="admin">Full Access</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button className="w-full">
-                      <Key className="h-4 w-4 mr-2" />
-                      Grant Access
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Active Permissions</CardTitle>
-                    <CardDescription>Current access grants and permissions</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 border border-border rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">did:nil:abc123...</p>
-                          <p className="text-xs text-muted-foreground">user_profile_001.json • Read Only</p>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Revoke
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between p-3 border border-border rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">did:nil:def456...</p>
-                          <p className="text-xs text-muted-foreground">transaction_log.json • Full Access</p>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Revoke
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>User Information</CardTitle>
+                        <CardDescription>Your Nillion user details</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {user && (
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-sm font-medium">User ID:</Label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <code className="flex-1 text-xs font-mono bg-muted p-2 rounded">{user.userId}</code>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(user.userId, "User ID")}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium">Public Key:</Label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <code className="flex-1 text-xs font-mono bg-muted p-2 rounded">{user.publicKey}</code>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(user.publicKey, "Public Key")}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium">Seed:</Label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <code className="flex-1 text-xs font-mono bg-muted p-2 rounded">{user.seed}</code>
+                                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(user.seed, "Seed")}>
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
