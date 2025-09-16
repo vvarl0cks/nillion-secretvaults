@@ -112,7 +112,7 @@ The application automatically configures connections to:
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 ├── app/
 │   ├── globals.css          # Global styles and design tokens
 │   ├── layout.tsx           # Root layout with providers
@@ -134,7 +134,7 @@ The application automatically configures connections to:
 │   ├── error-handler.ts     # Error handling utilities
 │   └── utils.ts             # Utility functions
 └── README.md
-\`\`\`
+```
 
 ## 🔧 Configuration
 
